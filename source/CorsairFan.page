@@ -179,19 +179,45 @@ input[type=number], input[type=range] { background: #111; border: 1px solid #444
   </div>
 </div>
 
-<!-- Fans -->
-<div class="cf-fans">
-  <?php foreach ($status['fans'] as $fan): ?>
-  <div class="cf-fan">
-    <div class="fan-name">FAN <?= $fan['id'] ?> — <?= htmlspecialchars($fan['label']) ?></div>
-    <div class="fan-rpm" style="color:<?= pct_color($fan['pct']) ?>"><?= $fan['rpm'] ?> <small style="font-size:12px;color:#888">RPM</small></div>
-    <div style="color:#888; font-size:12px"><?= $fan['pct'] ?>% (PWM <?= $fan['pwm'] ?>)</div>
-    <div class="fan-bar">
-      <div class="fan-bar-fill" style="width:<?= $fan['pct'] ?>%; background:<?= pct_color($fan['pct']) ?>"></div>
+<!-- Fans groupés par source -->
+<?php
+$fans_by_source = [];
+foreach ($status['fans'] as $fan) {
+    $src = $fan['source'] ?? 'unknown';
+    $fans_by_source[$src][] = $fan;
+}
+foreach ($fans_by_source as $source => $fans):
+    $controllable = !empty(array_filter($fans, fn($f) => $f['controllable'] ?? false));
+?>
+<div class="cf-section" style="padding:12px 16px">
+  <h3 style="margin-bottom:10px">
+    <?= htmlspecialchars(strtoupper($source)) ?>
+    <?php if ($controllable): ?>
+      <span style="font-size:10px; color:#7c6aff; font-weight:normal; letter-spacing:0; text-transform:none; margin-left:8px">PWM control</span>
+    <?php else: ?>
+      <span style="font-size:10px; color:#666; font-weight:normal; letter-spacing:0; text-transform:none; margin-left:8px">lecture seule</span>
+    <?php endif; ?>
+  </h3>
+  <div class="cf-fans" style="margin:0">
+    <?php foreach ($fans as $fan): ?>
+    <div class="cf-fan">
+      <div class="fan-name"><?= htmlspecialchars($fan['label']) ?> <span style="color:#555">#<?= $fan['num'] ?></span></div>
+      <div class="fan-rpm" style="color:<?= $fan['rpm'] > 0 ? pct_color($fan['pct']) : '#555' ?>">
+        <?= $fan['rpm'] ?> <small style="font-size:12px;color:#888">RPM</small>
+      </div>
+      <?php if ($fan['controllable'] ?? false): ?>
+        <div style="color:#888; font-size:12px"><?= $fan['pct'] ?>% (PWM <?= $fan['pwm'] ?>)</div>
+        <div class="fan-bar">
+          <div class="fan-bar-fill" style="width:<?= $fan['pct'] ?>%; background:<?= pct_color($fan['pct']) ?>"></div>
+        </div>
+      <?php else: ?>
+        <div style="color:#555; font-size:11px">non contrôlable</div>
+      <?php endif; ?>
     </div>
+    <?php endforeach; ?>
   </div>
-  <?php endforeach; ?>
 </div>
+<?php endforeach; ?>
 <?php endif; ?>
 
 <!-- Configuration -->

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Corsair Commander Pro — Fan Control Daemon
-# Lit la config dans /boot/config/plugins/corsair-fan/config
-# Écrit le statut dans /tmp/corsair-fan/status.json
+# Corsair Fan Control Daemon
+# Controls Commander Pro fans based on CPU temp
+# Also monitors ALL hwmon fans (motherboard, etc.)
 
 CONFIG="/boot/config/plugins/corsair-fan/config"
 STATUS="/tmp/corsair-fan/status.json"
@@ -12,12 +12,10 @@ echo $$ > "$PIDFILE"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
-# Trouver le hwmon du Commander Pro
 find_cpro() {
     find /sys/devices -path "*/0003:1B1C:0C10.*/hwmon/hwmon*" -maxdepth 12 -type d 2>/dev/null | head -1
 }
 
-# Température CPU max (coretemp)
 get_cpu_temp() {
     local max=0
     for f in /sys/class/hwmon/hwmon*/temp*_input; do
@@ -33,17 +31,11 @@ get_cpu_temp() {
     echo $max
 }
 
-# Interpolation linéaire de la courbe
 get_pwm_for_temp() {
-    local temp=$1
-    local curve="$2"
-    local prev_t=0 prev_p=0 first=1
-
+    local temp=$1 curve="$2" prev_t=0 prev_p=0 first=1
     for point in $curve; do
-        local t=${point%:*}
-        local p=${point#*:}
+        local t=${point%:*} p=${point#*:}
         if [ "$first" -eq 1 ]; then
-            # En dessous du premier point
             if [ "$temp" -le "$t" ]; then echo $p; return; fi
             first=0
         fi
@@ -54,16 +46,13 @@ get_pwm_for_temp() {
             echo $(( prev_p + (range_p * delta_t / range_t) ))
             return
         fi
-        prev_t=$t
-        prev_p=$p
+        prev_t=$t; prev_p=$p
     done
     echo $prev_p
 }
 
-# Appliquer PWM sur tous les fans
 apply_pwm() {
-    local cpro="$1"
-    local pwm="$2"
+    local cpro="$1" pwm="$2"
     [ "$pwm" -lt 0 ]   && pwm=0
     [ "$pwm" -gt 255 ] && pwm=255
     for i in 1 2 3 4 5 6; do
@@ -71,50 +60,63 @@ apply_pwm() {
     done
 }
 
-# Écrire le fichier de statut JSON
-write_status() {
-    local cpro="$1"
-    local profile="$2"
-    local cpu_temp="$3"
-    local pwm="$4"
-    local ts=$(date '+%Y-%m-%d %H:%M:%S')
-
+# Collect fans from ALL hwmon sources
+get_all_fans_json() {
     local fans_json=""
-    for i in 1 2 3 4 5 6; do
-        local label=$(cat "$cpro/fan${i}_label" 2>/dev/null | tr -d '"')
-        local rpm=$(cat "$cpro/fan${i}_input" 2>/dev/null)
-        local fpwm=$(cat "$cpro/pwm${i}" 2>/dev/null)
-        local pct=$(( fpwm * 100 / 255 ))
-        [ -n "$fans_json" ] && fans_json="$fans_json,"
-        fans_json="$fans_json{\"id\":$i,\"label\":\"$label\",\"rpm\":${rpm:-0},\"pwm\":${fpwm:-0},\"pct\":$pct}"
+    local uid=0
+
+    for hwmon in /sys/class/hwmon/hwmon*; do
+        [ -d "$hwmon" ] || continue
+        local source=$(cat "$hwmon/name" 2>/dev/null)
+        [ -z "$source" ] && continue
+
+        for fan_input in "$hwmon"/fan*_input; do
+            [ -f "$fan_input" ] || continue
+            uid=$(( uid + 1 ))
+            local fan_num=$(basename "$fan_input" | sed 's/fan\([0-9]*\)_input/\1/')
+            local rpm=$(cat "$fan_input" 2>/dev/null); rpm=${rpm:-0}
+            local pwm_file="$hwmon/pwm${fan_num}"
+            local pwm=0
+            local controllable="false"
+            if [ -f "$pwm_file" ]; then
+                pwm=$(cat "$pwm_file" 2>/dev/null); pwm=${pwm:-0}
+                controllable="true"
+            fi
+            local pct=$(( pwm * 100 / 255 ))
+            local label=$(cat "$hwmon/fan${fan_num}_label" 2>/dev/null | tr -d '"')
+            [ -z "$label" ] && label="Fan ${fan_num}"
+
+            [ -n "$fans_json" ] && fans_json="$fans_json,"
+            fans_json="${fans_json}{\"uid\":${uid},\"source\":\"${source}\",\"num\":${fan_num},\"label\":\"${label}\",\"rpm\":${rpm},\"pwm\":${pwm},\"pct\":${pct},\"controllable\":${controllable}}"
+        done
     done
 
-    # Températures supplémentaires
+    echo "$fans_json"
+}
+
+write_status() {
+    local cpro="$1" profile="$2" cpu_temp="$3" pwm="$4"
+    local ts=$(date '+%Y-%m-%d %H:%M:%S')
+
     local nvme_temp=0
     local nvme_f=$(cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null)
     [ -n "$nvme_f" ] && nvme_temp=$(( nvme_f / 1000 ))
 
-    cat > "$STATUS" <<EOF
-{
-  "profile": "$profile",
-  "cpu_temp": $cpu_temp,
-  "nvme_temp": $nvme_temp,
-  "target_pwm": $pwm,
-  "fans": [$fans_json],
-  "last_update": "$ts",
-  "daemon_running": true
-}
-EOF
+    local fans_json
+    fans_json=$(get_all_fans_json)
+
+    printf '{"profile":"%s","cpu_temp":%s,"nvme_temp":%s,"target_pwm":%s,"fans":[%s],"last_update":"%s","daemon_running":true}\n' \
+        "$profile" "$cpu_temp" "$nvme_temp" "$pwm" "$fans_json" "$ts" > "$STATUS"
 }
 
-log "Corsair Fan Control démarré (PID: $$)"
+log "Corsair Fan Control started (PID: $$)"
 
 while true; do
     [ -f "$CONFIG" ] && source "$CONFIG"
 
     CPRO=$(find_cpro)
     if [ -z "$CPRO" ]; then
-        log "ERREUR: Commander Pro introuvable"
+        log "Commander Pro not found, retrying..."
         sleep 10
         continue
     fi
@@ -131,6 +133,6 @@ while true; do
     apply_pwm "$CPRO" "$TARGET_PWM"
     write_status "$CPRO" "$PROFILE" "$CPU_TEMP" "$TARGET_PWM"
 
-    log "Profil=$PROFILE | CPU=${CPU_TEMP}°C | PWM=$TARGET_PWM ($(( TARGET_PWM * 100 / 255 ))%)"
+    log "Profile=$PROFILE | CPU=${CPU_TEMP}°C | PWM=$TARGET_PWM ($(( TARGET_PWM * 100 / 255 ))%)"
     sleep "${CHECK_INTERVAL:-30}"
 done
