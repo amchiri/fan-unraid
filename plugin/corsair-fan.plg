@@ -1,0 +1,73 @@
+<?xml version='1.0' standalone='yes'?>
+<!DOCTYPE PLUGIN [
+  <!ENTITY name      "corsair-fan">
+  <!ENTITY author    "amchiri">
+  <!ENTITY version   "2025.05.23">
+  <!ENTITY launch    "Settings/CorsairFan">
+  <!ENTITY gitURL    "https://raw.githubusercontent.com/amchiri/fan-unraid/main">
+]>
+<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" min="6.9.0">
+
+<CHANGES>
+###2025.05.23
+- Contrôle automatique des fans Corsair Commander Pro
+- Courbes de température configurables (Silencieux / Équilibré / Performance)
+- Mode manuel avec PWM fixe
+- Dashboard temps réel : RPM + températures CPU/NVMe
+- Page WebUI intégrée dans le GUI Unraid (Settings → Utilities)
+- Daemon en arrière-plan, intervalle configurable
+- Config persistante sur la clé USB
+</CHANGES>
+
+<!-- Daemon script -->
+<FILE Name="/usr/local/sbin/corsair-fan-daemon" Mode="0755">
+<URL>&gitURL;/source/corsair-fan-daemon</URL>
+</FILE>
+
+<!-- WebUI page -->
+<FILE Name="/usr/local/emhttp/plugins/corsair-fan/CorsairFan.page" Mode="0644">
+<URL>&gitURL;/source/CorsairFan.page</URL>
+</FILE>
+
+<!-- Default config (only written if not already present) -->
+<FILE Name="/tmp/corsair-fan-config.default" Mode="0644">
+<URL>&gitURL;/source/config.default</URL>
+</FILE>
+
+<!-- Post-install script -->
+<FILE Run="/bin/bash">
+<INLINE>
+<![CDATA[
+mkdir -p /boot/config/plugins/corsair-fan
+mkdir -p /tmp/corsair-fan
+
+# Install default config only if not already configured
+if [ ! -f /boot/config/plugins/corsair-fan/config ]; then
+    cp /tmp/corsair-fan-config.default /boot/config/plugins/corsair-fan/config
+    echo "Default config installed"
+fi
+rm -f /tmp/corsair-fan-config.default
+
+# Restart daemon
+pkill -f corsair-fan-daemon 2>/dev/null
+sleep 1
+nohup /usr/local/sbin/corsair-fan-daemon >> /tmp/corsair-fan/daemon.log 2>&1 &
+echo "Corsair Fan Control started (PID: $!)"
+]]>
+</INLINE>
+</FILE>
+
+<!-- Uninstall script -->
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+<![CDATA[
+pkill -f corsair-fan-daemon 2>/dev/null
+rm -f /usr/local/sbin/corsair-fan-daemon
+rm -rf /usr/local/emhttp/plugins/corsair-fan
+rm -rf /tmp/corsair-fan
+echo "Corsair Fan Control removed"
+]]>
+</INLINE>
+</FILE>
+
+</PLUGIN>

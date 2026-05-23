@@ -1,0 +1,136 @@
+#!/bin/bash
+# Corsair Commander Pro — Fan Control Daemon
+# Lit la config dans /boot/config/plugins/corsair-fan/config
+# Écrit le statut dans /tmp/corsair-fan/status.json
+
+CONFIG="/boot/config/plugins/corsair-fan/config"
+STATUS="/tmp/corsair-fan/status.json"
+PIDFILE="/tmp/corsair-fan/daemon.pid"
+
+mkdir -p /tmp/corsair-fan
+echo $$ > "$PIDFILE"
+
+log() { echo "[$(date '+%H:%M:%S')] $*"; }
+
+# Trouver le hwmon du Commander Pro
+find_cpro() {
+    find /sys/devices -path "*/0003:1B1C:0C10.*/hwmon/hwmon*" -maxdepth 12 -type d 2>/dev/null | head -1
+}
+
+# Température CPU max (coretemp)
+get_cpu_temp() {
+    local max=0
+    for f in /sys/class/hwmon/hwmon*/temp*_input; do
+        [ -f "$f" ] || continue
+        local hwmon_dir=$(dirname "$f")
+        local name=$(cat "$hwmon_dir/name" 2>/dev/null)
+        [ "$name" = "coretemp" ] || continue
+        local val=$(cat "$f" 2>/dev/null)
+        [ -z "$val" ] && continue
+        local t=$(( val / 1000 ))
+        [ "$t" -gt "$max" ] && max=$t
+    done
+    echo $max
+}
+
+# Interpolation linéaire de la courbe
+get_pwm_for_temp() {
+    local temp=$1
+    local curve="$2"
+    local prev_t=0 prev_p=0 first=1
+
+    for point in $curve; do
+        local t=${point%:*}
+        local p=${point#*:}
+        if [ "$first" -eq 1 ]; then
+            # En dessous du premier point
+            if [ "$temp" -le "$t" ]; then echo $p; return; fi
+            first=0
+        fi
+        if [ "$temp" -le "$t" ]; then
+            local range_t=$(( t - prev_t ))
+            local range_p=$(( p - prev_p ))
+            local delta_t=$(( temp - prev_t ))
+            echo $(( prev_p + (range_p * delta_t / range_t) ))
+            return
+        fi
+        prev_t=$t
+        prev_p=$p
+    done
+    echo $prev_p
+}
+
+# Appliquer PWM sur tous les fans
+apply_pwm() {
+    local cpro="$1"
+    local pwm="$2"
+    [ "$pwm" -lt 0 ]   && pwm=0
+    [ "$pwm" -gt 255 ] && pwm=255
+    for i in 1 2 3 4 5 6; do
+        echo "$pwm" > "$cpro/pwm${i}" 2>/dev/null
+    done
+}
+
+# Écrire le fichier de statut JSON
+write_status() {
+    local cpro="$1"
+    local profile="$2"
+    local cpu_temp="$3"
+    local pwm="$4"
+    local ts=$(date '+%Y-%m-%d %H:%M:%S')
+
+    local fans_json=""
+    for i in 1 2 3 4 5 6; do
+        local label=$(cat "$cpro/fan${i}_label" 2>/dev/null | tr -d '"')
+        local rpm=$(cat "$cpro/fan${i}_input" 2>/dev/null)
+        local fpwm=$(cat "$cpro/pwm${i}" 2>/dev/null)
+        local pct=$(( fpwm * 100 / 255 ))
+        [ -n "$fans_json" ] && fans_json="$fans_json,"
+        fans_json="$fans_json{\"id\":$i,\"label\":\"$label\",\"rpm\":${rpm:-0},\"pwm\":${fpwm:-0},\"pct\":$pct}"
+    done
+
+    # Températures supplémentaires
+    local nvme_temp=0
+    local nvme_f=$(cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null)
+    [ -n "$nvme_f" ] && nvme_temp=$(( nvme_f / 1000 ))
+
+    cat > "$STATUS" <<EOF
+{
+  "profile": "$profile",
+  "cpu_temp": $cpu_temp,
+  "nvme_temp": $nvme_temp,
+  "target_pwm": $pwm,
+  "fans": [$fans_json],
+  "last_update": "$ts",
+  "daemon_running": true
+}
+EOF
+}
+
+log "Corsair Fan Control démarré (PID: $$)"
+
+while true; do
+    [ -f "$CONFIG" ] && source "$CONFIG"
+
+    CPRO=$(find_cpro)
+    if [ -z "$CPRO" ]; then
+        log "ERREUR: Commander Pro introuvable"
+        sleep 10
+        continue
+    fi
+
+    CPU_TEMP=$(get_cpu_temp)
+
+    case "$PROFILE" in
+        silent)      TARGET_PWM=$(get_pwm_for_temp "$CPU_TEMP" "$CURVE_SILENT") ;;
+        performance) TARGET_PWM=$(get_pwm_for_temp "$CPU_TEMP" "$CURVE_PERFORMANCE") ;;
+        manual)      TARGET_PWM=$MANUAL_PWM ;;
+        *)           TARGET_PWM=$(get_pwm_for_temp "$CPU_TEMP" "$CURVE_BALANCED") ;;
+    esac
+
+    apply_pwm "$CPRO" "$TARGET_PWM"
+    write_status "$CPRO" "$PROFILE" "$CPU_TEMP" "$TARGET_PWM"
+
+    log "Profil=$PROFILE | CPU=${CPU_TEMP}°C | PWM=$TARGET_PWM ($(( TARGET_PWM * 100 / 255 ))%)"
+    sleep "${CHECK_INTERVAL:-30}"
+done
