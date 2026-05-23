@@ -52,10 +52,14 @@ get_pwm_for_temp() {
 }
 
 apply_pwm() {
-    local cpro="$1" pwm="$2"
-    [ "$pwm" -lt 0 ]   && pwm=0
-    [ "$pwm" -gt 255 ] && pwm=255
+    local cpro="$1" default_pwm="$2"
     for i in 1 2 3 4 5 6; do
+        local override_var="FAN${i}_PWM"
+        local override="${!override_var}"
+        local pwm=$default_pwm
+        if [[ "$override" =~ ^[0-9]+$ ]] && [ "$override" -ge 0 ] && [ "$override" -le 255 ]; then
+            pwm=$override
+        fi
         echo "$pwm" > "$cpro/pwm${i}" 2>/dev/null
     done
 }
@@ -105,8 +109,7 @@ write_status() {
     local fans_json
     fans_json=$(get_all_fans_json)
 
-    printf '{"profile":"%s","cpu_temp":%s,"nvme_temp":%s,"target_pwm":%s,"fans":[%s],"last_update":"%s","daemon_running":true}\n' \
-        "$profile" "$cpu_temp" "$nvme_temp" "$pwm" "$fans_json" "$ts" > "$STATUS"
+    echo "{\"profile\":\"$profile\",\"cpu_temp\":$cpu_temp,\"nvme_temp\":$nvme_temp,\"target_pwm\":$pwm,\"fans\":[$fans_json],\"last_update\":\"$ts\",\"daemon_running\":true}" > "$STATUS"
 }
 
 log "Corsair Fan Control started (PID: $$)"

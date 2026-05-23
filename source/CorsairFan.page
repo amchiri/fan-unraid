@@ -12,7 +12,9 @@ $daemon_pid  = "/tmp/corsair-fan/daemon.pid";
 $cfg = ['PROFILE'=>'balanced','MANUAL_PWM'=>102,'CHECK_INTERVAL'=>30,
         'CURVE_SILENT'=>'30:51 40:64 50:89 60:115 70:153 80:204',
         'CURVE_BALANCED'=>'30:77 40:102 50:128 60:160 70:204 80:240',
-        'CURVE_PERFORMANCE'=>'30:102 40:140 50:179 60:210 70:240 80:255'];
+        'CURVE_PERFORMANCE'=>'30:102 40:140 50:179 60:210 70:240 80:255',
+        'FAN1_PWM'=>'auto','FAN2_PWM'=>'auto','FAN3_PWM'=>'auto',
+        'FAN4_PWM'=>'auto','FAN5_PWM'=>'auto','FAN6_PWM'=>'auto'];
 if (file_exists($config_file)) {
     foreach (file($config_file) as $line) {
         $line = trim($line);
@@ -47,9 +49,18 @@ if ($_POST) {
             'CURVE_PERFORMANCE' => trim($_POST['curve_performance'] ?? $cfg['CURVE_PERFORMANCE']),
         ];
 
+        $fan_overrides = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $val = $_POST["fan{$i}_pwm"] ?? 'auto';
+            if ($val !== 'auto') $val = max(0, min(255, (int)$val));
+            $fan_overrides["FAN{$i}_PWM"] = $val;
+            $cfg["FAN{$i}_PWM"] = $val;
+        }
+
         $content = "PROFILE=$profile\n\n";
         foreach ($curves as $k=>$v) $content .= "$k=\"$v\"\n";
-        $content .= "\nMANUAL_PWM=$manual_pwm\nCHECK_INTERVAL=$interval\n";
+        $content .= "\nMANUAL_PWM=$manual_pwm\nCHECK_INTERVAL=$interval\n\n";
+        foreach ($fan_overrides as $k=>$v) $content .= "$k=$v\n";
         file_put_contents($config_file, $content);
         $cfg['PROFILE'] = $profile;
         $cfg['MANUAL_PWM'] = $manual_pwm;
@@ -187,6 +198,7 @@ foreach ($status['fans'] as $fan) {
     $fans_by_source[$src][] = $fan;
 }
 foreach ($fans_by_source as $source => $fans):
+    $is_cpro = ($source === 'corsaircpro');
     $controllable = !empty(array_filter($fans, fn($f) => $f['controllable'] ?? false));
 ?>
 <div class="cf-section" style="padding:12px 16px">
@@ -199,7 +211,12 @@ foreach ($fans_by_source as $source => $fans):
     <?php endif; ?>
   </h3>
   <div class="cf-fans" style="margin:0">
-    <?php foreach ($fans as $fan): ?>
+    <?php foreach ($fans as $fan):
+      $fan_cfg_key = "FAN{$fan['num']}_PWM";
+      $fan_override = $is_cpro ? ($cfg[$fan_cfg_key] ?? 'auto') : 'auto';
+      $is_manual = ($fan_override !== 'auto');
+      $manual_val = $is_manual ? (int)$fan_override : $fan['pwm'];
+    ?>
     <div class="cf-fan">
       <div class="fan-name"><?= htmlspecialchars($fan['label']) ?> <span style="color:#555">#<?= $fan['num'] ?></span></div>
       <div class="fan-rpm" style="color:<?= $fan['rpm'] > 0 ? pct_color($fan['pct']) : '#555' ?>">
@@ -207,9 +224,36 @@ foreach ($fans_by_source as $source => $fans):
       </div>
       <?php if ($fan['controllable'] ?? false): ?>
         <div style="color:#888; font-size:12px"><?= $fan['pct'] ?>% (PWM <?= $fan['pwm'] ?>)</div>
-        <div class="fan-bar">
+        <div class="fan-bar" style="margin-bottom:8px">
           <div class="fan-bar-fill" style="width:<?= $fan['pct'] ?>%; background:<?= pct_color($fan['pct']) ?>"></div>
         </div>
+        <?php if ($is_cpro): ?>
+        <div style="margin-top:6px">
+          <label style="font-size:11px; display:flex; align-items:center; gap:6px; cursor:pointer">
+            <input type="checkbox" name="fan<?= $fan['num'] ?>_manual"
+                   id="fan<?= $fan['num'] ?>_manual"
+                   <?= $is_manual ? 'checked' : '' ?>
+                   onchange="toggleFanManual(<?= $fan['num'] ?>)"
+                   style="cursor:pointer">
+            Manuel
+          </label>
+          <div id="fan<?= $fan['num'] ?>_ctrl" style="margin-top:4px; <?= $is_manual ? '' : 'display:none' ?>">
+            <input type="range" min="0" max="255"
+                   name="fan<?= $fan['num'] ?>_pwm_range"
+                   id="fan<?= $fan['num'] ?>_pwm_range"
+                   value="<?= $manual_val ?>"
+                   oninput="updateFanPwm(<?= $fan['num'] ?>, this.value)"
+                   style="width:100%">
+            <input type="hidden" name="fan<?= $fan['num'] ?>_pwm" id="fan<?= $fan['num'] ?>_pwm_val" value="<?= $is_manual ? $manual_val : 'auto' ?>">
+            <span id="fan<?= $fan['num'] ?>_pwm_lbl" style="color:#eee; font-size:11px">
+              <?= round($manual_val * 100 / 255) ?>% (<?= $manual_val ?>)
+            </span>
+          </div>
+          <?php if (!$is_manual): ?>
+          <input type="hidden" name="fan<?= $fan['num'] ?>_pwm" value="auto">
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
       <?php else: ?>
         <div style="color:#555; font-size:11px">non contrôlable</div>
       <?php endif; ?>
@@ -270,6 +314,27 @@ foreach ($fans_by_source as $source => $fans):
 </form>
 
 <script>
+function toggleFanManual(num) {
+    var cb  = document.getElementById('fan' + num + '_manual');
+    var ctrl = document.getElementById('fan' + num + '_ctrl');
+    var hidden = document.getElementById('fan' + num + '_pwm_val');
+    if (cb.checked) {
+        ctrl.style.display = '';
+        var range = document.getElementById('fan' + num + '_pwm_range');
+        hidden.value = range.value;
+    } else {
+        ctrl.style.display = 'none';
+        hidden.value = 'auto';
+    }
+}
+
+function updateFanPwm(num, val) {
+    val = parseInt(val);
+    document.getElementById('fan' + num + '_pwm_val').value = val;
+    document.getElementById('fan' + num + '_pwm_lbl').textContent =
+        Math.round(val * 100 / 255) + '% (' + val + ')';
+}
+
 <?php if ($daemon_running): ?>
 setTimeout(function(){ location.reload(); }, 30000);
 <?php endif; ?>
