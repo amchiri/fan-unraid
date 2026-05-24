@@ -1,5 +1,5 @@
 #!/bin/bash
-# Corsair Fan Control Daemon
+# Fan Control Daemon
 # Controls Commander Pro fans based on CPU temp
 # Also monitors ALL hwmon fans (motherboard, etc.)
 
@@ -112,7 +112,7 @@ write_status() {
     echo "{\"profile\":\"$profile\",\"cpu_temp\":$cpu_temp,\"nvme_temp\":$nvme_temp,\"target_pwm\":$pwm,\"fans\":[$fans_json],\"last_update\":\"$ts\",\"daemon_running\":true}" > "$STATUS"
 }
 
-log "Corsair Fan Control started (PID: $$)"
+log "Fan Control started (PID: $$)"
 
 while true; do
     [ -f "$CONFIG" ] && source "$CONFIG"

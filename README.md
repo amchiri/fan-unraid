@@ -1,4 +1,4 @@
-# Corsair Fan Control — Unraid Plugin
+# Fan Control — Unraid Plugin
 
 Unraid plugin for automatic fan control via the **Corsair Commander Pro**, based on CPU temperature. Also monitors all fans detected on the system (motherboard, GPU, etc.).
 
@@ -32,7 +32,7 @@ The plugin will automatically download the daemon and WebUI page from GitHub, in
 
 ## Usage
 
-Go to **Settings → Utilities → Corsair Fan Control**.
+Go to **Settings → Utilities → Fan Control**.
 
 ### Profiles
 

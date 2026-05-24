@@ -52,7 +52,7 @@ rm -f /tmp/corsair-fan-config.default
 pkill -f corsair-fan-daemon 2>/dev/null
 sleep 1
 nohup /usr/local/sbin/corsair-fan-daemon >> /tmp/corsair-fan/daemon.log 2>&1 &
-echo "Corsair Fan Control started (PID: $!)"
+echo "Fan Control started (PID: $!)"
 ]]>
 </INLINE>
 </FILE>
@@ -65,7 +65,7 @@ pkill -f corsair-fan-daemon 2>/dev/null
 rm -f /usr/local/sbin/corsair-fan-daemon
 rm -rf /usr/local/emhttp/plugins/corsair-fan
 rm -rf /tmp/corsair-fan
-echo "Corsair Fan Control removed"
+echo "Fan Control removed"
 ]]>
 </INLINE>
 </FILE>
