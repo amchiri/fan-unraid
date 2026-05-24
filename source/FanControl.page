@@ -4,9 +4,9 @@ Icon="tachometer"
 Tag="tachometer"
 ---
 <?PHP
-$config_file = "/boot/config/plugins/corsair-fan/config";
-$status_file = "/tmp/corsair-fan/status.json";
-$daemon_pid  = "/tmp/corsair-fan/daemon.pid";
+$config_file = "/boot/config/plugins/fan-control/config";
+$status_file = "/tmp/fan-control/status.json";
+$daemon_pid  = "/tmp/fan-control/daemon.pid";
 
 // Lire la config
 $cfg = ['PROFILE'=>'balanced','MANUAL_PWM'=>102,'CHECK_INTERVAL'=>30,
@@ -69,7 +69,7 @@ if ($_POST) {
 
     if (isset($_POST['daemon_action'])) {
         if ($_POST['daemon_action'] === 'start' && !$daemon_running) {
-            shell_exec("nohup /usr/local/sbin/corsair-fan-daemon >> /tmp/corsair-fan/daemon.log 2>&1 &");
+            shell_exec("nohup /usr/local/sbin/fan-control-daemon >> /tmp/fan-control/daemon.log 2>&1 &");
         } elseif ($_POST['daemon_action'] === 'stop' && $daemon_running) {
             $pid = trim(file_get_contents($daemon_pid));
             shell_exec("kill $pid 2>/dev/null");
@@ -78,7 +78,7 @@ if ($_POST) {
             $daemon_running = false;
         }
         sleep(1);
-        header("Location: /Settings/CorsairFan"); exit;
+        header("Location: /Settings/FanControl"); exit;
     }
     // Recharger le statut
     if (file_exists($status_file)) $status = json_decode(file_get_contents($status_file), true);

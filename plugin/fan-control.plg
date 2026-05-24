@@ -1,9 +1,9 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
-  <!ENTITY name      "corsair-fan">
+  <!ENTITY name      "fan-control">
   <!ENTITY author    "amchiri">
   <!ENTITY version   "2025.05.23">
-  <!ENTITY launch    "Settings/CorsairFan">
+  <!ENTITY launch    "Settings/FanControl">
   <!ENTITY gitURL    "https://raw.githubusercontent.com/amchiri/fan-unraid/main">
 ]>
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" icon="tachometer" min="6.9.0">
@@ -20,17 +20,17 @@
 </CHANGES>
 
 <!-- Daemon script -->
-<FILE Name="/usr/local/sbin/corsair-fan-daemon" Mode="0755">
-<URL>&gitURL;/source/corsair-fan-daemon</URL>
+<FILE Name="/usr/local/sbin/fan-control-daemon" Mode="0755">
+<URL>&gitURL;/source/fan-control-daemon</URL>
 </FILE>
 
 <!-- WebUI page -->
-<FILE Name="/usr/local/emhttp/plugins/corsair-fan/CorsairFan.page" Mode="0644">
-<URL>&gitURL;/source/CorsairFan.page</URL>
+<FILE Name="/usr/local/emhttp/plugins/fan-control/FanControl.page" Mode="0644">
+<URL>&gitURL;/source/FanControl.page</URL>
 </FILE>
 
 <!-- Default config (only written if not already present) -->
-<FILE Name="/tmp/corsair-fan-config.default" Mode="0644">
+<FILE Name="/tmp/fan-control-config.default" Mode="0644">
 <URL>&gitURL;/source/config.default</URL>
 </FILE>
 
@@ -38,20 +38,20 @@
 <FILE Run="/bin/bash">
 <INLINE>
 <![CDATA[
-mkdir -p /boot/config/plugins/corsair-fan
-mkdir -p /tmp/corsair-fan
+mkdir -p /boot/config/plugins/fan-control
+mkdir -p /tmp/fan-control
 
 # Install default config only if not already configured
-if [ ! -f /boot/config/plugins/corsair-fan/config ]; then
-    cp /tmp/corsair-fan-config.default /boot/config/plugins/corsair-fan/config
+if [ ! -f /boot/config/plugins/fan-control/config ]; then
+    cp /tmp/fan-control-config.default /boot/config/plugins/fan-control/config
     echo "Default config installed"
 fi
-rm -f /tmp/corsair-fan-config.default
+rm -f /tmp/fan-control-config.default
 
 # Restart daemon
-pkill -f corsair-fan-daemon 2>/dev/null
+pkill -f fan-control-daemon 2>/dev/null
 sleep 1
-nohup /usr/local/sbin/corsair-fan-daemon >> /tmp/corsair-fan/daemon.log 2>&1 &
+nohup /usr/local/sbin/fan-control-daemon >> /tmp/fan-control/daemon.log 2>&1 &
 echo "Fan Control started (PID: $!)"
 ]]>
 </INLINE>
@@ -61,10 +61,10 @@ echo "Fan Control started (PID: $!)"
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
 <![CDATA[
-pkill -f corsair-fan-daemon 2>/dev/null
-rm -f /usr/local/sbin/corsair-fan-daemon
-rm -rf /usr/local/emhttp/plugins/corsair-fan
-rm -rf /tmp/corsair-fan
+pkill -f fan-control-daemon 2>/dev/null
+rm -f /usr/local/sbin/fan-control-daemon
+rm -rf /usr/local/emhttp/plugins/fan-control
+rm -rf /tmp/fan-control
 echo "Fan Control removed"
 ]]>
 </INLINE>

@@ -11,7 +11,7 @@ Unraid plugin for automatic fan control via the **Corsair Commander Pro**, based
 - **Real-time dashboard** — RPM, PWM %, CPU and NVMe temperatures
 - **Integrated WebUI** in Unraid Settings → Utilities
 - **Background daemon** with configurable check interval
-- **Persistent config** saved to USB key (`/boot/config/plugins/corsair-fan/config`)
+- **Persistent config** saved to USB key (`/boot/config/plugins/fan-control/config`)
 - **Auto-start** on boot via plugin post-install
 
 ## Requirements
@@ -25,7 +25,7 @@ Unraid plugin for automatic fan control via the **Corsair Commander Pro**, based
 In the Unraid UI, go to **Plugins → Install Plugin** and paste:
 
 ```
-https://raw.githubusercontent.com/amchiri/fan-unraid/main/plugin/corsair-fan.plg
+https://raw.githubusercontent.com/amchiri/fan-unraid/main/plugin/fan-control.plg
 ```
 
 The plugin will automatically download the daemon and WebUI page from GitHub, install the default config, and start the daemon.
@@ -69,17 +69,17 @@ Default curves:
 ```
 corsair-fan-unraid/
 ├── plugin/
-│   └── corsair-fan.plg          # Unraid plugin installer
+│   └── fan-control.plg          # Unraid plugin installer
 ├── source/
-│   ├── corsair-fan-daemon       # Bash daemon
-│   ├── CorsairFan.page          # WebUI (PHP)
+│   ├── fan-control-daemon       # Bash daemon
+│   ├── FanControl.page          # WebUI (PHP)
 │   └── config.default           # Default config
 └── README.md
 ```
 
 ## Config file
 
-Located at `/boot/config/plugins/corsair-fan/config` (persists across reboots).
+Located at `/boot/config/plugins/fan-control/config` (persists across reboots).
 
 ```bash
 PROFILE=balanced
@@ -103,8 +103,8 @@ FAN6_PWM=auto
 ## Logs
 
 ```bash
-tail -f /tmp/corsair-fan/daemon.log
-cat /tmp/corsair-fan/status.json
+tail -f /tmp/fan-control/daemon.log
+cat /tmp/fan-control/status.json
 ```
 
 ## Compatibility

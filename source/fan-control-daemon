@@ -3,11 +3,11 @@
 # Controls Commander Pro fans based on CPU temp
 # Also monitors ALL hwmon fans (motherboard, etc.)
 
-CONFIG="/boot/config/plugins/corsair-fan/config"
-STATUS="/tmp/corsair-fan/status.json"
-PIDFILE="/tmp/corsair-fan/daemon.pid"
+CONFIG="/boot/config/plugins/fan-control/config"
+STATUS="/tmp/fan-control/status.json"
+PIDFILE="/tmp/fan-control/daemon.pid"
 
-mkdir -p /tmp/corsair-fan
+mkdir -p /tmp/fan-control
 echo $$ > "$PIDFILE"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
