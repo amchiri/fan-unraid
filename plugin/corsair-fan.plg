@@ -6,7 +6,7 @@
   <!ENTITY launch    "Settings/CorsairFan">
   <!ENTITY gitURL    "https://raw.githubusercontent.com/amchiri/fan-unraid/main">
 ]>
-<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" min="6.9.0">
+<PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" icon="tachometer" min="6.9.0">
 
 <CHANGES>
 ###2025.05.23
