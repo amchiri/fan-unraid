@@ -31,6 +31,19 @@ get_cpu_temp() {
     echo $max
 }
 
+get_nvme_temp() {
+    for hwmon in /sys/class/hwmon/hwmon*; do
+        [ "$(cat "$hwmon/name" 2>/dev/null)" = "nvme" ] || continue
+        local f="$hwmon/temp1_input"
+        [ -f "$f" ] || continue
+        local val=$(cat "$f" 2>/dev/null)
+        [ -z "$val" ] && continue
+        echo $(( val / 1000 ))
+        return
+    done
+    echo 0
+}
+
 get_pwm_for_temp() {
     local temp=$1 curve="$2" prev_t=0 prev_p=0 first=1
     for point in $curve; do
@@ -102,9 +115,8 @@ write_status() {
     local cpro="$1" profile="$2" cpu_temp="$3" pwm="$4"
     local ts=$(date '+%Y-%m-%d %H:%M:%S')
 
-    local nvme_temp=0
-    local nvme_f=$(cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null)
-    [ -n "$nvme_f" ] && nvme_temp=$(( nvme_f / 1000 ))
+    local nvme_temp
+    nvme_temp=$(get_nvme_temp)
 
     local fans_json
     fans_json=$(get_all_fans_json)
