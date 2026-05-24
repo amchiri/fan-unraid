@@ -1,7 +1,7 @@
 Menu="Utilities"
 Title="Fan Control"
-Icon="tachometer"
-Tag="tachometer"
+Icon="snowflake-o"
+Tag="snowflake-o"
 ---
 <?PHP
 $config_file = "/boot/config/plugins/fan-control/config";
@@ -144,7 +144,7 @@ input[type=number], input[type=range] { background: #111; border: 1px solid #444
 </style>
 <div>
 <h2 style="color:#eee; margin: 0 0 4px 0">
-  <i class="fa fa-tachometer" style="color:#7c6aff"></i> Corsair Commander Pro — Fan Control
+  <i class="fa fa-snowflake-o" style="color:#7c6aff"></i> Corsair Commander Pro — Fan Control
 </h2>
 <p style="color:#666; margin:0 0 16px 0">Contrôle automatique des ventilateurs basé sur la température CPU</p>
 
